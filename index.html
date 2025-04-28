@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>手機點餐系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+
+  <!-- LOGO -->
+  <div class="flex justify-center mb-4">
+    <img src="https://i.imgur.com/cAvK9nM.jpeg" alt="LOGO" class="h-20">
+  </div>
+
+  <!-- 標題 -->
+  <h1 class="text-2xl font-bold text-center mb-6">歡迎使用手機點餐</h1>
+
+  <!-- 菜單 -->
+  <div id="menu" class="grid grid-cols-1 gap-4 mb-8"></div>
+
+  <!-- 購物車 -->
+  <h2 class="text-xl font-bold mb-2">購物車</h2>
+  <div id="cart" class="bg-white p-4 rounded shadow"></div>
+
+  <!-- 桌號/備註 -->
+  <div class="mt-4">
+    <label for="note" class="block text-gray-700 mb-1">桌號/備註：</label>
+    <input type="text" id="note" class="w-full p-2 border rounded" placeholder="例如：5號桌、少冰">
+  </div>
+
+  <!-- 按鈕 -->
+  <div class="flex space-x-4 mt-4">
+    <button onclick="submitOrder()" class="w-full bg-green-500 text-white py-2 rounded">送出訂單</button>
+    <button onclick="clearCart()" class="w-full bg-red-500 text-white py-2 rounded">清空購物車</button>
+    <button onclick="scrollToTop()" class="w-full bg-blue-500 text-white py-2 rounded">返回頂部</button>
+  </div>
+
+  <!-- 訂單送出成功訊息 -->
+  <div id="order-confirmation" class="hidden mt-8 p-4 bg-green-100 text-green-800 rounded"></div>
+
+  <script>
+    const menuItems = [
+      { name: '漢堡', price: 120 },
+      { name: '薯條', price: 60 },
+      { name: '可樂', price: 40 },
+      { name: '炸雞', price: 150 }
+    ];
+
+    const cart = [];
+
+    function renderMenu() {
+      const menuDiv = document.getElementById('menu');
+      menuDiv.innerHTML = '';
+      menuItems.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'bg-white p-4 rounded shadow flex justify-between items-center';
+        itemDiv.innerHTML = `
+          <div>
+            <p class="font-bold">${item.name}</p>
+            <p class="text-gray-500">$${item.price}</p>
+          </div>
+          <button onclick="addToCart(${index})" class="bg-blue-500 text-white px-3 py-1 rounded">加入</button>
+        `;
+        menuDiv.appendChild(itemDiv);
+      });
+    }
+
+    function addToCart(index) {
+      const found = cart.find(item => item.name === menuItems[index].name);
+      if (found) {
+        found.qty++;
+      } else {
+        cart.push({ ...menuItems[index], qty: 1 });
+      }
+      renderCart();
+    }
+
+    function changeQty(index, delta) {
+      cart[index].qty += delta;
+      if (cart[index].qty <= 0) {
+        cart.splice(index, 1);
+      }
+      renderCart();
+    }
+
+    function renderCart() {
+      const cartDiv = document.getElementById('cart');
+      cartDiv.innerHTML = '';
+      if (cart.length === 0) {
+        cartDiv.innerHTML = '<p class="text-gray-500">購物車是空的</p>';
+        return;
+      }
+      cart.forEach((item, idx) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'flex justify-between items-center my-2';
+        itemDiv.innerHTML = `
+          <div>
+            ${item.name} - $${item.price} x ${item.qty}
+          </div>
+          <div class="space-x-2">
+            <button onclick="changeQty(${idx}, 1)" class="bg-green-500 text-white px-2 rounded">+</button>
+            <button onclick="changeQty(${idx}, -1)" class="bg-red-500 text-white px-2 rounded">-</button>
+          </div>
+        `;
+        cartDiv.appendChild(itemDiv);
+      });
+      const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const totalP = document.createElement('p');
+      totalP.className = 'font-bold mt-2';
+      totalP.textContent = `總金額：$${total}`;
+      cartDiv.appendChild(totalP);
+    }
+
+    function submitOrder() {
+      if (cart.length === 0) {
+        alert('請先選擇商品後再送出訂單！');
+        return;
+      }
+
+      const orderDetails = cart.map(item => `${item.name} x${item.qty}`).join(', ');
+      const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const note = document.getElementById('note').value.trim();
+
+      const orderData = {
+        orderDetails: orderDetails,
+        total: total,
+        note: note
+      };
+
+      fetch('https://script.google.com/macros/s/AKfycby_b2uKZHhgcnDRjJb_85zalXEfKumMsGpkSrvB_5LBjNbhJCDsFpXjPphhBr2rOcx1pQ/exec', {
+        method: 'POST',
+        body: JSON.stringify(orderData),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.text())
+      .then(result => {
+        console.log(result);
+        const confirmationDiv = document.getElementById('order-confirmation');
+        confirmationDiv.innerHTML = `感謝您的訂購！<br>訂單內容：${orderDetails}<br>總金額：$${total}`;
+        if (note) {
+          confirmationDiv.innerHTML += `<br>桌號/備註：${note}`;
+        }
+        confirmationDiv.classList.remove('hidden');
+
+        cart.length = 0;
+        renderCart();
+        document.getElementById('note').value = '';
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('訂單送出失敗，請稍後再試。');
+      });
+    }
+
+    function clearCart() {
+      if (cart.length === 0) {
+        alert('購物車已經是空的！');
+        return;
+      }
+      if (confirm('確定要清空購物車嗎？')) {
+        cart.length = 0;
+        renderCart();
+      }
+    }
+
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    renderMenu();
+    renderCart();
+  </script>
+
+</body>
+</html>
