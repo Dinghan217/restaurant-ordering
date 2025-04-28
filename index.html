@@ -2,41 +2,30 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>手機點餐系統</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 p-4">
 
-  <!-- LOGO -->
-  <div class="flex justify-center mb-4">
-    <img src="https://i.imgur.com/cAvK9nM.jpeg" alt="LOGO" class="h-20">
-  </div>
+  <h1 class="text-2xl font-bold mb-4 text-center">菜單</h1>
 
-  <!-- 標題 -->
-  <h1 class="text-2xl font-bold text-center mb-6">歡迎使用手機點餐</h1>
+  <div id="menu" class="grid grid-cols-1 gap-4"></div>
 
-  <!-- 菜單 -->
-  <div id="menu" class="grid grid-cols-1 gap-4 mb-8"></div>
-
-  <!-- 購物車 -->
-  <h2 class="text-xl font-bold mb-2">購物車</h2>
+  <h2 class="text-xl font-bold mt-8 mb-4">購物車</h2>
   <div id="cart" class="bg-white p-4 rounded shadow"></div>
 
-  <!-- 桌號/備註 -->
-  <div class="mt-4">
-    <label for="note" class="block text-gray-700 mb-1">桌號/備註：</label>
-    <input type="text" id="note" class="w-full p-2 border rounded" placeholder="例如：5號桌、少冰">
+  <div class="mb-4">
+    <label for="tableNumber" class="block font-bold mb-1">桌號 / 備註：</label>
+    <input id="tableNumber" type="text" class="w-full p-2 border rounded" placeholder="請輸入桌號或備註">
   </div>
 
-  <!-- 按鈕 -->
   <div class="flex space-x-4 mt-4">
     <button onclick="submitOrder()" class="w-full bg-green-500 text-white py-2 rounded">送出訂單</button>
     <button onclick="clearCart()" class="w-full bg-red-500 text-white py-2 rounded">清空購物車</button>
     <button onclick="scrollToTop()" class="w-full bg-blue-500 text-white py-2 rounded">返回頂部</button>
   </div>
 
-  <!-- 訂單送出成功訊息 -->
   <div id="order-confirmation" class="hidden mt-8 p-4 bg-green-100 text-green-800 rounded"></div>
 
   <script>
@@ -48,6 +37,8 @@
     ];
 
     const cart = [];
+
+    const scriptURL = '你的Google Script網址'; // ⚡ 這邊填上你部署後的 Web App URL
 
     function renderMenu() {
       const menuDiv = document.getElementById('menu');
@@ -95,9 +86,7 @@
         const itemDiv = document.createElement('div');
         itemDiv.className = 'flex justify-between items-center my-2';
         itemDiv.innerHTML = `
-          <div>
-            ${item.name} - $${item.price} x ${item.qty}
-          </div>
+          <div>${item.name} - $${item.price} x ${item.qty}</div>
           <div class="space-x-2">
             <button onclick="changeQty(${idx}, 1)" class="bg-green-500 text-white px-2 rounded">+</button>
             <button onclick="changeQty(${idx}, -1)" class="bg-red-500 text-white px-2 rounded">-</button>
@@ -112,47 +101,43 @@
       cartDiv.appendChild(totalP);
     }
 
-    function submitOrder() {
+    async function submitOrder() {
       if (cart.length === 0) {
-        alert('請先選擇商品後再送出訂單！');
+        alert('請先加入商品到購物車！');
         return;
       }
-
+      const tableNumber = document.getElementById('tableNumber').value.trim();
+      if (tableNumber === '') {
+        alert('請填寫桌號或備註！');
+        return;
+      }
       const orderDetails = cart.map(item => `${item.name} x${item.qty}`).join(', ');
-      const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-      const note = document.getElementById('note').value.trim();
+      const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
 
-      const orderData = {
-        orderDetails: orderDetails,
-        total: total,
-        note: note
-      };
+      try {
+        const response = await fetch(scriptURL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderDetails,
+            totalAmount,
+            tableNumber
+          })
+        });
 
-      fetch('https://script.google.com/macros/s/AKfycby0E0J99TUGgVuxJowcF3SY3uNZyqCwk5XJQW6gVHtncyxKK-gEsvCoN8RjBUaYLpv9Pg/exec', {
-        method: 'POST',
-        body: JSON.stringify(orderData),
-        headers: {
-          'Content-Type': 'application/json'
+        const result = await response.json();
+        if (result.success) {
+          document.getElementById('order-confirmation').classList.remove('hidden');
+          document.getElementById('order-confirmation').innerHTML = '訂單送出成功！';
+          cart.length = 0;
+          renderCart();
+          document.getElementById('tableNumber').value = '';
+        } else {
+          alert('訂單送出失敗，請稍後再試！');
         }
-      })
-      .then(response => response.text())
-      .then(result => {
-        console.log(result);
-        const confirmationDiv = document.getElementById('order-confirmation');
-        confirmationDiv.innerHTML = `感謝您的訂購！<br>訂單內容：${orderDetails}<br>總金額：$${total}`;
-        if (note) {
-          confirmationDiv.innerHTML += `<br>桌號/備註：${note}`;
-        }
-        confirmationDiv.classList.remove('hidden');
-
-        cart.length = 0;
-        renderCart();
-        document.getElementById('note').value = '';
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        alert('訂單送出失敗，請稍後再試。');
-      });
+      } catch (error) {
+        alert('訂單送出失敗，請檢查網路連線或稍後再試！');
+      }
     }
 
     function clearCart() {
